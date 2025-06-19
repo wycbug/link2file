@@ -322,6 +322,7 @@ basekit.addField({
             // 优先级1: 通过HEAD请求获取文件信息
             try {
               const headResponse = await context.fetch(url, {
+                method: "HEAD",
                 headers: {
                   "User-Agent":
                     "Mozilla/5.0 (compatible; LinkToAttachment/1.0)",
