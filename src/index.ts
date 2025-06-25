@@ -6,9 +6,758 @@ import {
   FieldCode,
   FieldContext,
 } from "@lark-opdev/block-basekit-server-api";
-import { fileTypeFromBuffer } from "file-type";
+import { fromBuffer } from "file-type";
 
 const { t } = field;
+
+// 文件类型映射表 - MIME类型到文件扩展名
+const MIME_TYPE_MAP = {
+  // 文档类型
+  "text/html": ".html",
+  "text/htm": ".htm",
+  "application/pdf": ".pdf",
+  "application/msword": ".doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    ".docx",
+  "application/vnd.ms-excel": ".xls",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+  "application/vnd.ms-powerpoint": ".ppt",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+    ".pptx",
+  "application/rtf": ".rtf",
+  "text/plain": ".txt",
+  "text/csv": ".csv",
+  "application/xml": ".xml",
+  "text/xml": ".xml",
+  "text/markdown": ".md",
+  "text/x-markdown": ".md",
+
+  // 图片类型
+  "image/jpeg": ".jpg",
+  "image/jpg": ".jpg",
+  "image/png": ".png",
+  "image/gif": ".gif",
+  "image/webp": ".webp",
+  "image/svg+xml": ".svg",
+  "image/svg": ".svg",
+  "image/bmp": ".bmp",
+  "image/tiff": ".tiff",
+  "image/tif": ".tif",
+  "image/ico": ".ico",
+  "image/icon": ".ico",
+  "image/x-icon": ".ico",
+  "image/vnd.microsoft.icon": ".ico",
+  "image/heic": ".heic",
+  "image/heif": ".heif",
+  "image/avif": ".avif",
+
+  // 音频类型
+  "audio/mpeg": ".mp3",
+  "audio/mp3": ".mp3",
+  "audio/wav": ".wav",
+  "audio/wave": ".wav",
+  "audio/x-wav": ".wav",
+  "audio/aac": ".aac",
+  "audio/ogg": ".ogg",
+  "audio/opus": ".opus",
+  "audio/flac": ".flac",
+  "audio/x-flac": ".flac",
+  "audio/m4a": ".m4a",
+  "audio/mp4": ".m4a",
+  "audio/wma": ".wma",
+  "audio/x-ms-wma": ".wma",
+
+  // 视频类型
+  "video/mp4": ".mp4",
+  "video/webm": ".webm",
+  "video/ogg": ".ogv",
+  "video/avi": ".avi",
+  "video/x-msvideo": ".avi",
+  "video/mov": ".mov",
+  "video/quicktime": ".mov",
+  "video/wmv": ".wmv",
+  "video/x-ms-wmv": ".wmv",
+  "video/flv": ".flv",
+  "video/x-flv": ".flv",
+  "video/mkv": ".mkv",
+  "video/x-matroska": ".mkv",
+  "video/3gpp": ".3gp",
+  "video/3gpp2": ".3g2",
+
+  // 代码和脚本类型
+  "application/javascript": ".js",
+  "text/javascript": ".js",
+  "application/json": ".json",
+  "text/css": ".css",
+  "application/typescript": ".ts",
+  "text/typescript": ".ts",
+  "application/x-python": ".py",
+  "text/x-python": ".py",
+  "application/x-php": ".php",
+  "text/x-php": ".php",
+  "application/x-java": ".java",
+  "text/x-java": ".java",
+  "application/x-c": ".c",
+  "text/x-c": ".c",
+  "application/x-cpp": ".cpp",
+  "text/x-cpp": ".cpp",
+  "application/x-csharp": ".cs",
+  "text/x-csharp": ".cs",
+  "application/x-yaml": ".yaml",
+  "text/yaml": ".yaml",
+  "application/x-toml": ".toml",
+  "text/toml": ".toml",
+
+  // 压缩文件类型
+  "application/zip": ".zip",
+  "application/x-zip": ".zip",
+  "application/x-zip-compressed": ".zip",
+  "application/x-rar": ".rar",
+  "application/x-rar-compressed": ".rar",
+  "application/x-7z-compressed": ".7z",
+  "application/x-tar": ".tar",
+  "application/gzip": ".gz",
+  "application/x-gzip": ".gz",
+  "application/x-bzip2": ".bz2",
+
+  // 字体类型
+  "font/woff": ".woff",
+  "font/woff2": ".woff2",
+  "application/font-woff": ".woff",
+  "application/font-woff2": ".woff2",
+  "font/ttf": ".ttf",
+  "font/otf": ".otf",
+  "application/x-font-ttf": ".ttf",
+  "application/x-font-otf": ".otf",
+  "font/eot": ".eot",
+  "application/vnd.ms-fontobject": ".eot",
+
+  // 其他常见类型
+  "application/octet-stream": ".bin",
+  "application/x-executable": ".exe",
+  "application/x-msdownload": ".exe",
+  "application/x-msi": ".msi",
+  "application/x-deb": ".deb",
+  "application/x-rpm": ".rpm",
+  "application/x-dmg": ".dmg",
+  "application/x-iso9660-image": ".iso",
+};
+
+// 支持的文件扩展名列表
+const SUPPORTED_EXTENSIONS = [
+  // 文档类型
+  ".html",
+  ".htm",
+  ".pdf",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+  ".ppt",
+  ".pptx",
+  ".rtf",
+  ".txt",
+  ".csv",
+  ".xml",
+  ".md",
+  ".yaml",
+  ".yml",
+  ".toml",
+
+  // 图片类型
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".gif",
+  ".webp",
+  ".svg",
+  ".bmp",
+  ".tiff",
+  ".tif",
+  ".ico",
+  ".heic",
+  ".heif",
+  ".avif",
+
+  // 音频类型
+  ".mp3",
+  ".wav",
+  ".aac",
+  ".ogg",
+  ".opus",
+  ".flac",
+  ".m4a",
+  ".wma",
+
+  // 视频类型
+  ".mp4",
+  ".webm",
+  ".ogv",
+  ".avi",
+  ".mov",
+  ".wmv",
+  ".flv",
+  ".mkv",
+  ".3gp",
+  ".3g2",
+
+  // 代码和脚本类型
+  ".js",
+  ".ts",
+  ".json",
+  ".css",
+  ".py",
+  ".php",
+  ".java",
+  ".c",
+  ".cpp",
+  ".cs",
+  ".rb",
+  ".go",
+  ".rs",
+  ".swift",
+
+  // 压缩文件类型
+  ".zip",
+  ".rar",
+  ".7z",
+  ".tar",
+  ".gz",
+  ".bz2",
+
+  // 字体类型
+  ".woff",
+  ".woff2",
+  ".ttf",
+  ".otf",
+  ".eot",
+
+  // 其他常见类型
+  ".bin",
+  ".exe",
+  ".msi",
+  ".deb",
+  ".rpm",
+  ".dmg",
+  ".iso",
+];
+
+// CDN域名检测策略配置
+const CDN_DETECTION_STRATEGIES = {
+  // 图片CDN - 优先使用Content-Type，URL扩展名作为备用
+  image_cdns: {
+    domains: [
+      "qlogo.cn",
+      "qpic.cn",
+      "sinaimg.cn",
+      "weibocdn.com",
+      "xhscdn.com",
+      "bilivideo.com",
+      "hdslb.com",
+      "googlevideo.com",
+      "ytimg.com",
+      "fbcdn.net",
+      "cdninstagram.com",
+      "twimg.com",
+      "imagedelivery.net",
+      "cloudinary.com",
+      "imgur.com",
+    ],
+    strategy: "content_type_first", // Content-Type优先
+    fallback: "url_extension",
+    confidence: 0.9,
+  },
+
+  // 阿里云OSS - URL路径通常很准确
+  aliyun_oss: {
+    domains: [
+      "aliyuncs.com",
+      "alicdn.com",
+      "oss-cn-beijing.aliyuncs.com",
+      "oss-cn-shanghai.aliyuncs.com",
+      "oss-cn-hangzhou.aliyuncs.com",
+      "oss-cn-shenzhen.aliyuncs.com",
+      "oss-cn-guangzhou.aliyuncs.com",
+    ],
+    strategy: "url_extension_first", // URL扩展名优先
+    fallback: "content_type",
+    confidence: 0.95,
+  },
+
+  // 腾讯云COS - 类似阿里云
+  tencent_cos: {
+    domains: [
+      "myqcloud.com",
+      "qcloudimg.com",
+      "cos.ap-beijing.myqcloud.com",
+      "cos.ap-shanghai.myqcloud.com",
+      "cos.ap-guangzhou.myqcloud.com",
+    ],
+    strategy: "url_extension_first",
+    fallback: "content_type",
+    confidence: 0.95,
+  },
+
+  // GitHub/GitLab - 代码文件，URL扩展名很准确
+  code_repos: {
+    domains: [
+      "github.com",
+      "raw.githubusercontent.com",
+      "gitlab.com",
+      "gitee.com",
+      "coding.net",
+    ],
+    strategy: "url_extension_first",
+    fallback: "content_type",
+    confidence: 0.98,
+  },
+
+  // 文档分享平台 - Content-Type通常准确
+  document_platforms: {
+    domains: [
+      "docs.google.com",
+      "drive.google.com",
+      "onedrive.live.com",
+      "sharepoint.com",
+      "dropbox.com",
+      "box.com",
+    ],
+    strategy: "content_type_first",
+    fallback: "file_content",
+    confidence: 0.85,
+  },
+
+  // 通用CDN - 需要文件内容检测
+  generic_cdns: {
+    domains: [
+      "cloudfront.net",
+      "amazonaws.com",
+      "cloudflare.com",
+      "fastly.com",
+      "akamai.net",
+      "jsdelivr.net",
+      "unpkg.com",
+    ],
+    strategy: "file_content_first", // 文件内容优先
+    fallback: "content_type",
+    confidence: 0.8,
+  },
+
+  // 华为云CDN - URL扩展名通常准确
+  huawei_cloud: {
+    domains: [
+      "huaweicloud.com",
+      "myhuaweicloud.com",
+      "obs.cn-beijing.myhuaweicloud.com",
+      "obs.cn-shanghai.myhuaweicloud.com",
+      "obs.cn-guangzhou.myhuaweicloud.com",
+    ],
+    strategy: "url_extension_first",
+    fallback: "content_type",
+    confidence: 0.92,
+  },
+
+  // 其他云存储CDN - URL扩展名优先
+  other_cloud_storage: {
+    domains: [
+      "ksyun.com",
+      "ksyuncs.com",
+      "ksyuncdn.com", // 金山云
+      "qiniucdn.com",
+      "qnssl.com",
+      "clouddn.com",
+      "qbox.me", // 七牛云
+      "upaiyun.com",
+      "upyun.com",
+      "upcdn.net", // 又拍云
+      "bcebos.com",
+      "baidubce.com", // 百度云
+    ],
+    strategy: "url_extension_first",
+    fallback: "content_type",
+    confidence: 0.9,
+  },
+
+  // 门户网站CDN - Content-Type优先
+  portal_cdns: {
+    domains: [
+      "126.net",
+      "163.com", // 网易
+      "baidu.com",
+      "sina.com",
+      "weibo.com", // 门户网站
+    ],
+    strategy: "content_type_first",
+    fallback: "url_extension",
+    confidence: 0.8,
+  },
+
+  // 开发者CDN - URL扩展名很准确
+  developer_cdns: {
+    domains: [
+      "maxcdn.com",
+      "bootstrapcdn.com",
+      "googleapis.com",
+      "gstatic.com",
+      "githubassets.com",
+      "github.io",
+      "raw.githubusercontent.com",
+    ],
+    strategy: "url_extension_first",
+    fallback: "content_type",
+    confidence: 0.95,
+  },
+
+  // 字节跳动系CDN - Content-Type优先
+  bytedance_cdns: {
+    domains: [
+      "bytedance.com",
+      "toutiao.com",
+      "douyin.com",
+      "tiktok.com",
+      "tiktokcdn.com",
+      "tiktokcdn-us.com",
+      "tiktokcdn-ak.com",
+      "tiktokcdn.cn",
+      "aweme.com",
+      "amemv.com",
+      "zjcdn.com",
+      "bytedance-ads.com",
+      "douyinpic.com",
+      "iesdouyin.com",
+      "ixigua.com",
+      "byteimg.com",
+    ],
+    strategy: "content_type_first",
+    fallback: "url_extension",
+    confidence: 0.88,
+  },
+};
+
+// 检测方式枚举
+enum DetectionMethod {
+  CONTENT_TYPE = "content_type",
+  URL_EXTENSION = "url_extension",
+  FILE_CONTENT = "file_content",
+}
+
+// 检测结果接口
+interface DetectionResult {
+  extension: string;
+  method: DetectionMethod;
+  confidence: number;
+  success: boolean;
+}
+
+// 根据域名获取最佳检测策略
+function getBestDetectionStrategy(hostname: string): {
+  strategy: string;
+  fallback: string;
+  confidence: number;
+} {
+  for (const [categoryName, config] of Object.entries(
+    CDN_DETECTION_STRATEGIES
+  )) {
+    if (config.domains.some((domain) => hostname.includes(domain))) {
+      console.log(
+        `[CDN策略] 检测到${categoryName}域名: ${hostname}, 使用策略: ${config.strategy}`
+      );
+      return config;
+    }
+  }
+
+  // 默认策略：Content-Type -> URL -> 文件内容
+  return {
+    strategy: "content_type_first",
+    fallback: "url_extension",
+    confidence: 0.7,
+  };
+}
+
+// 单独的检测方法实现
+async function detectByContentType(
+  url: string,
+  context: any,
+  logID: string
+): Promise<DetectionResult> {
+  try {
+    const headResponse = await context.fetch(url, {
+      method: "HEAD",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; LinkToAttachment/1.0)",
+      },
+    });
+
+    const contentType = headResponse.headers.get("content-type") || "";
+    const cleanContentType = contentType.split(";")[0].trim().toLowerCase();
+
+    for (const [mimeType, ext] of Object.entries(MIME_TYPE_MAP)) {
+      if (cleanContentType === mimeType.toLowerCase()) {
+        return {
+          extension: ext,
+          method: DetectionMethod.CONTENT_TYPE,
+          confidence: 0.85,
+          success: true,
+        };
+      }
+    }
+
+    return {
+      extension: "",
+      method: DetectionMethod.CONTENT_TYPE,
+      confidence: 0,
+      success: false,
+    };
+  } catch (error) {
+    return {
+      extension: "",
+      method: DetectionMethod.CONTENT_TYPE,
+      confidence: 0,
+      success: false,
+    };
+  }
+}
+
+async function detectByUrlExtension(
+  url: string,
+  logID: string
+): Promise<DetectionResult> {
+  try {
+    const urlObj = new URL(url);
+    const pathname = urlObj.pathname;
+    const lastSegment = pathname.split("/").pop();
+
+    let urlExtension = "";
+
+    // 从路径中提取扩展名
+    if (lastSegment && lastSegment.includes(".")) {
+      urlExtension = lastSegment.substring(lastSegment.lastIndexOf("."));
+    }
+
+    // 从查询参数中查找filename
+    if (!urlExtension) {
+      const searchParams = urlObj.searchParams;
+      const filename =
+        searchParams.get("filename") ||
+        searchParams.get("name") ||
+        searchParams.get("file");
+      if (filename && filename.includes(".")) {
+        urlExtension = filename.substring(filename.lastIndexOf("."));
+      }
+    }
+
+    if (
+      urlExtension &&
+      SUPPORTED_EXTENSIONS.includes(urlExtension.toLowerCase())
+    ) {
+      return {
+        extension: urlExtension.toLowerCase(),
+        method: DetectionMethod.URL_EXTENSION,
+        confidence: 0.75,
+        success: true,
+      };
+    }
+
+    return {
+      extension: "",
+      method: DetectionMethod.URL_EXTENSION,
+      confidence: 0,
+      success: false,
+    };
+  } catch (error) {
+    return {
+      extension: "",
+      method: DetectionMethod.URL_EXTENSION,
+      confidence: 0,
+      success: false,
+    };
+  }
+}
+
+async function detectByFileContent(
+  url: string,
+  context: any,
+  logID: string
+): Promise<DetectionResult> {
+  try {
+    // 先尝试下载文件头部
+    const headerResponse = await context.fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; LinkToAttachment/1.0)",
+        Range: "bytes=0-8191",
+      },
+    });
+
+    if (headerResponse.status === 206 || headerResponse.status === 200) {
+      const arrayBuffer = await headerResponse.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      const detectedExtension = await detectFileTypeFromBuffer(
+        uint8Array,
+        logID
+      );
+
+      if (detectedExtension !== ".file") {
+        return {
+          extension: detectedExtension,
+          method: DetectionMethod.FILE_CONTENT,
+          confidence: 0.95,
+          success: true,
+        };
+      }
+    }
+
+    return {
+      extension: "",
+      method: DetectionMethod.FILE_CONTENT,
+      confidence: 0,
+      success: false,
+    };
+  } catch (error) {
+    return {
+      extension: "",
+      method: DetectionMethod.FILE_CONTENT,
+      confidence: 0,
+      success: false,
+    };
+  }
+}
+
+// 并发检测所有方式
+async function detectFileTypeConcurrently(
+  url: string,
+  context: any,
+  logID: string
+): Promise<DetectionResult> {
+  console.log(`[${logID}] 开始并发检测文件类型: ${url}`);
+
+  // 并发执行所有检测方式
+  const [contentTypeResult, urlExtensionResult, fileContentResult] =
+    await Promise.allSettled([
+      detectByContentType(url, context, logID),
+      detectByUrlExtension(url, logID),
+      detectByFileContent(url, context, logID),
+    ]);
+
+  const results: DetectionResult[] = [];
+
+  if (
+    contentTypeResult.status === "fulfilled" &&
+    contentTypeResult.value.success
+  ) {
+    results.push(contentTypeResult.value);
+  }
+  if (
+    urlExtensionResult.status === "fulfilled" &&
+    urlExtensionResult.value.success
+  ) {
+    results.push(urlExtensionResult.value);
+  }
+  if (
+    fileContentResult.status === "fulfilled" &&
+    fileContentResult.value.success
+  ) {
+    results.push(fileContentResult.value);
+  }
+
+  if (results.length === 0) {
+    return {
+      extension: ".file",
+      method: DetectionMethod.FILE_CONTENT,
+      confidence: 0,
+      success: false,
+    };
+  }
+
+  // 投票机制：选择置信度最高的结果
+  const bestResult = results.reduce((best, current) =>
+    current.confidence > best.confidence ? current : best
+  );
+
+  // 如果有多个结果且置信度相近，进行一致性检查
+  if (results.length > 1) {
+    const consistentResults = results.filter(
+      (r) => r.extension === bestResult.extension
+    );
+    if (consistentResults.length > 1) {
+      bestResult.confidence = Math.min(0.98, bestResult.confidence + 0.1); // 一致性加分
+      console.log(
+        `[${logID}] 多种方式检测一致: ${bestResult.extension}, 置信度提升至: ${bestResult.confidence}`
+      );
+    }
+  }
+
+  console.log(
+    `[${logID}] 并发检测完成，最佳结果: ${bestResult.extension} (${bestResult.method}, 置信度: ${bestResult.confidence})`
+  );
+  return bestResult;
+}
+
+// 基于CDN策略的定制化检测
+async function detectFileTypeByStrategy(
+  url: string,
+  context: any,
+  logID: string,
+  strategy: { strategy: string; fallback: string; confidence: number }
+): Promise<DetectionResult> {
+  console.log(
+    `[${logID}] 使用CDN策略检测: ${strategy.strategy} -> ${strategy.fallback}`
+  );
+
+  let primaryResult: DetectionResult;
+  let fallbackResult: DetectionResult;
+
+  // 执行主要策略
+  switch (strategy.strategy) {
+    case "content_type_first":
+      primaryResult = await detectByContentType(url, context, logID);
+      break;
+    case "url_extension_first":
+      primaryResult = await detectByUrlExtension(url, logID);
+      break;
+    case "file_content_first":
+      primaryResult = await detectByFileContent(url, context, logID);
+      break;
+    default:
+      primaryResult = await detectByContentType(url, context, logID);
+  }
+
+  // 如果主要策略成功，返回结果
+  if (primaryResult.success) {
+    primaryResult.confidence = Math.min(
+      0.98,
+      primaryResult.confidence * strategy.confidence
+    );
+    return primaryResult;
+  }
+
+  // 执行备用策略
+  switch (strategy.fallback) {
+    case "content_type":
+      fallbackResult = await detectByContentType(url, context, logID);
+      break;
+    case "url_extension":
+      fallbackResult = await detectByUrlExtension(url, logID);
+      break;
+    case "file_content":
+      fallbackResult = await detectByFileContent(url, context, logID);
+      break;
+    default:
+      fallbackResult = await detectByUrlExtension(url, logID);
+  }
+
+  if (fallbackResult.success) {
+    fallbackResult.confidence = Math.min(0.9, fallbackResult.confidence * 0.8); // 备用策略降低置信度
+    return fallbackResult;
+  }
+
+  // 都失败了，返回默认结果
+  return {
+    extension: ".file",
+    method: DetectionMethod.FILE_CONTENT,
+    confidence: 0,
+    success: false,
+  };
+}
 
 // 使用 file-type 库检测文件类型
 async function detectFileTypeFromBuffer(
@@ -16,7 +765,7 @@ async function detectFileTypeFromBuffer(
   logID?: string
 ): Promise<string> {
   try {
-    const fileType = await fileTypeFromBuffer(buffer);
+    const fileType = await fromBuffer(buffer);
 
     if (fileType && fileType.ext) {
       return `.${fileType.ext}`;
@@ -312,14 +1061,40 @@ basekit.addField({
             const urlObj = new URL(url);
             const pathname = urlObj.pathname;
             const lastSegment = pathname.split("/").pop();
+            const hostname = urlObj.hostname;
 
-            // 文件扩展名获取逻辑
-            let fileExtension = "";
-            let useHeadRequest = true;
-            let useUrlExtraction = false;
-            let useFileDownload = false;
+            // 根据域名获取最佳检测策略
+            const strategy = getBestDetectionStrategy(hostname);
 
-            // 优先级1: 通过HEAD请求获取文件信息
+            let detectionResult: DetectionResult;
+
+            // 根据用户配置选择检测模式
+            const useConcurrentDetection = true; // 可以作为配置项
+
+            if (useConcurrentDetection) {
+              // 方案1: 并发检测所有方式
+              detectionResult = await detectFileTypeConcurrently(
+                url,
+                context,
+                logID
+              );
+            } else {
+              // 方案2: 基于CDN策略的定制化检测
+              detectionResult = await detectFileTypeByStrategy(
+                url,
+                context,
+                logID,
+                strategy
+              );
+            }
+
+            fileExtension = detectionResult.extension || ".file";
+
+            console.log(
+              `[${logID}] 文件类型检测完成: ${fileExtension} (置信度: ${detectionResult.confidence})`
+            );
+
+            // 检查文件大小限制
             try {
               const headResponse = await context.fetch(url, {
                 method: "HEAD",
@@ -329,15 +1104,7 @@ basekit.addField({
                 },
               });
 
-              const contentType =
-                headResponse.headers.get("content-type") || "";
               const contentLength = headResponse.headers.get("content-length");
-
-              console.log(
-                `[${logID}] URL: ${url}, Content-Type: ${contentType}, Content-Length: ${contentLength}`
-              );
-
-              // 检查文件大小，如果超过25MB则丢弃
               if (contentLength) {
                 const fileSizeInMB = parseInt(contentLength) / (1024 * 1024);
                 if (fileSizeInMB > 25) {
@@ -347,148 +1114,11 @@ basekit.addField({
                   return null; // 丢弃该链接
                 }
               }
-
-              // 根据Content-Type确定文件扩展名
-              const commonTypes = {
-                "text/html": ".html",
-                "application/pdf": ".pdf",
-                "image/jpeg": ".jpg",
-                "image/jpg": ".jpg",
-                "image/png": ".png",
-                "image/gif": ".gif",
-                "image/webp": ".webp",
-                "image/svg": ".svg",
-                "application/json": ".json",
-                "text/plain": ".txt",
-                "text/css": ".css",
-                "application/javascript": ".js",
-                "text/javascript": ".js",
-                "application/zip": ".zip",
-                "application/x-rar": ".rar",
-                "video/mp4": ".mp4",
-                "video/webm": ".webm",
-                "audio/mpeg": ".mp3",
-                "audio/wav": ".wav",
-                "application/msword": ".doc",
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                  ".docx",
-                "application/vnd.ms-excel": ".xls",
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
-                  ".xlsx",
-              };
-
-              // 检查是否为常用类型
-              let foundCommonType = false;
-              for (const [mimeType, ext] of Object.entries(commonTypes)) {
-                if (contentType.includes(mimeType)) {
-                  fileExtension = ext;
-                  foundCommonType = true;
-                  break;
-                }
-              }
-
-              if (!foundCommonType) {
-                useUrlExtraction = true;
-              }
             } catch (headError) {
-              console.warn(`[${logID}] HEAD请求失败: ${url}`, headError);
-              useUrlExtraction = true;
-            }
-
-            // 优先级2: 从URL路径中提取文件扩展名
-            if (useUrlExtraction) {
-              if (lastSegment && lastSegment.includes(".")) {
-                const urlExtension = lastSegment.substring(
-                  lastSegment.lastIndexOf(".")
-                );
-                const commonExtensions = [
-                  ".html",
-                  ".pdf",
-                  ".jpg",
-                  ".jpeg",
-                  ".png",
-                  ".gif",
-                  ".webp",
-                  ".svg",
-                  ".json",
-                  ".txt",
-                  ".css",
-                  ".js",
-                  ".zip",
-                  ".rar",
-                  ".mp4",
-                  ".webm",
-                  ".mp3",
-                  ".wav",
-                  ".doc",
-                  ".docx",
-                  ".xls",
-                  ".xlsx",
-                ];
-
-                if (commonExtensions.includes(urlExtension.toLowerCase())) {
-                  fileExtension = urlExtension.toLowerCase();
-                } else {
-                  useFileDownload = true;
-                }
-              } else {
-                useFileDownload = true;
-              }
-            }
-
-            // 优先级3: 下载文件到内存并判断类型
-            if (useFileDownload) {
-              try {
-                console.log(`[${logID}] 尝试下载文件进行类型检测: ${url}`);
-                const downloadResponse = await context.fetch(url, {
-                  headers: {
-                    "User-Agent":
-                      "Mozilla/5.0 (compatible; LinkToAttachment/1.0)",
-                  },
-                });
-
-                if (!downloadResponse.ok) {
-                  throw new Error(`下载失败: ${downloadResponse.status}`);
-                }
-
-                // 检查Content-Length
-                const contentLength =
-                  downloadResponse.headers.get("content-length");
-                if (contentLength) {
-                  const fileSizeInMB = parseInt(contentLength) / (1024 * 1024);
-                  if (fileSizeInMB > 25) {
-                    console.warn(
-                      `[${logID}] 下载时发现文件过大 (${fileSizeInMB.toFixed(
-                        2
-                      )}MB): ${url}`
-                    );
-                    return null; // 丢弃该链接
-                  }
-                }
-
-                // 读取文件内容到内存
-                const arrayBuffer = await downloadResponse.arrayBuffer();
-                const fileSizeInMB = arrayBuffer.byteLength / (1024 * 1024);
-
-                if (fileSizeInMB > 25) {
-                  console.warn(
-                    `[${logID}] 下载完成后发现文件过大 (${fileSizeInMB.toFixed(
-                      2
-                    )}MB): ${url}`
-                  );
-                  return null; // 丢弃该链接
-                }
-
-                // 通过文件头判断文件类型
-                const uint8Array = new Uint8Array(arrayBuffer);
-                fileExtension = await detectFileTypeFromBuffer(
-                  uint8Array,
-                  logID
-                );
-              } catch (downloadError) {
-                console.warn(`[${logID}] 文件下载失败: ${url}`, downloadError);
-                fileExtension = ".file"; // 使用默认扩展名
-              }
+              console.warn(
+                `[${logID}] 无法获取文件大小信息: ${url}`,
+                headError
+              );
             }
 
             // 如果仍然没有扩展名，使用默认值
@@ -499,6 +1129,40 @@ basekit.addField({
             fileName = (lastSegment || "link_" + (index + 1)) + fileExtension;
           } catch (e) {
             console.warn(`[${logID}] 解析URL失败:`, url, e);
+            fileName = "link_" + (index + 1) + ".file";
+          }
+
+          // 下载文件内容
+          try {
+            console.log(`[${logID}] 开始下载文件: ${url}`);
+            const response = await context.fetch(url, {
+              headers: {
+                "User-Agent": "Mozilla/5.0 (compatible; LinkToAttachment/1.0)",
+              },
+            });
+
+            if (!response.ok) {
+              throw new Error(`下载失败: ${response.status}`);
+            }
+
+            const arrayBuffer = await response.arrayBuffer();
+
+            // 检查文件大小
+            const fileSizeInMB = arrayBuffer.byteLength / (1024 * 1024);
+            if (fileSizeInMB > 25) {
+              console.warn(
+                `[${logID}] 文件过大 (${fileSizeInMB.toFixed(2)}MB): ${url}`
+              );
+              return null;
+            }
+
+            console.log(
+              `[${logID}] 文件下载成功，大小: ${fileSizeInMB.toFixed(2)}MB`
+            );
+
+            // fileName已经在外层设置了，这里不需要重新设置
+          } catch (downloadError) {
+            console.warn(`[${logID}] 文件下载失败: ${url}`, downloadError);
             fileName = "link_" + (index + 1) + ".file";
           }
 

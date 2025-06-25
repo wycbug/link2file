@@ -16,6 +16,6 @@
   },
   "dependencies": {
     "@lark-opdev/block-basekit-server-api": "1.0.4-alpha.25",
-    "file-type": "^21.0.0"
+    "file-type": "^16.5.4"
   }
 }
