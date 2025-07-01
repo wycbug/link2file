@@ -534,15 +534,43 @@ async function detectByUrlExtension(
       urlExtension = lastSegment.substring(lastSegment.lastIndexOf("."));
     }
 
-    // 从查询参数中查找filename
+    // 从查询参数中查找filename或format信息
     if (!urlExtension) {
       const searchParams = urlObj.searchParams;
+
+      // 优先查找filename参数
       const filename =
         searchParams.get("filename") ||
         searchParams.get("name") ||
         searchParams.get("file");
       if (filename && filename.includes(".")) {
         urlExtension = filename.substring(filename.lastIndexOf("."));
+      }
+
+      // 如果没有filename，查找format参数（如小红书的imageView2/format/png）
+      if (!urlExtension) {
+        const format = searchParams.get("format");
+        if (format) {
+          urlExtension = `.${format.toLowerCase()}`;
+        }
+      }
+
+      // 检查URL路径中的特殊格式参数（如 /format/png）
+      if (!urlExtension) {
+        const pathMatch = pathname.match(/\/format\/(\w+)/i);
+        if (pathMatch && pathMatch[1]) {
+          urlExtension = `.${pathMatch[1].toLowerCase()}`;
+        }
+      }
+
+      // 检查imageView2等图片处理参数
+      if (!urlExtension) {
+        const imageViewMatch = urlObj.search.match(
+          /imageView2[^&]*\/format\/(\w+)/i
+        );
+        if (imageViewMatch && imageViewMatch[1]) {
+          urlExtension = `.${imageViewMatch[1].toLowerCase()}`;
+        }
       }
     }
 
@@ -1126,7 +1154,30 @@ basekit.addField({
               fileExtension = ".file";
             }
 
-            fileName = (lastSegment || "link_" + (index + 1)) + fileExtension;
+            // 生成文件名，避免重复扩展名
+            if (lastSegment) {
+              // 检查lastSegment是否已经有扩展名
+              if (
+                lastSegment.includes(".") &&
+                lastSegment.toLowerCase().endsWith(fileExtension.toLowerCase())
+              ) {
+                // 如果已经有相同的扩展名，直接使用
+                fileName = lastSegment;
+              } else if (lastSegment.includes(".")) {
+                // 如果有其他扩展名，替换为检测到的扩展名
+                const nameWithoutExt = lastSegment.substring(
+                  0,
+                  lastSegment.lastIndexOf(".")
+                );
+                fileName = nameWithoutExt + fileExtension;
+              } else {
+                // 如果没有扩展名，添加检测到的扩展名
+                fileName = lastSegment + fileExtension;
+              }
+            } else {
+              // 如果没有lastSegment，使用默认名称
+              fileName = "link_" + (index + 1) + fileExtension;
+            }
           } catch (e) {
             console.warn(`[${logID}] 解析URL失败:`, url, e);
             fileName = "link_" + (index + 1) + ".file";
