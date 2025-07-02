@@ -353,6 +353,7 @@ basekit.addDomainList([
   "kuaishou.com",
   "kuaishoustatic.com",
   "kwaicdn.com",
+  "kwimgs.com",
   "wsukwai.com",
   "yximgs.com",
   // YouTube CDN
